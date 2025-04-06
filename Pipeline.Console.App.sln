@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35728.132 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline.Console.App", "Pipeline.Console.App\Pipeline.Console.App.csproj", "{18564C12-5367-4EA1-81D3-2D877EE5214C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline.Lib", "Pipeline.Lib\Pipeline.Lib.csproj", "{FE67E5E5-BC7B-47CD-905F-D8F7BA1CBC70}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{18564C12-5367-4EA1-81D3-2D877EE5214C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{18564C12-5367-4EA1-81D3-2D877EE5214C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{18564C12-5367-4EA1-81D3-2D877EE5214C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{18564C12-5367-4EA1-81D3-2D877EE5214C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE67E5E5-BC7B-47CD-905F-D8F7BA1CBC70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE67E5E5-BC7B-47CD-905F-D8F7BA1CBC70}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE67E5E5-BC7B-47CD-905F-D8F7BA1CBC70}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE67E5E5-BC7B-47CD-905F-D8F7BA1CBC70}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
