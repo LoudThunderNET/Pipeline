@@ -1,4 +1,4 @@
-﻿namespace Pipeline.Lib.Abstraction
+﻿namespace Pipeline.Lib
 {
     public class PropertyValue
     {

@@ -1,29 +1,35 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pipeline.Lib.Abstraction;
+using Pipeline.Lib.PipeNodes;
 using Pipeline.Lib.Pipes;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Reflection.Metadata;
 
 namespace Pipeline.Lib
 {
     public static class ServiceCollectionExtensions
     {
-        private static Dictionary<Type, Expression> s_expressionCache = new Dictionary<Type, Expression>();
-        private static MethodInfo getRequiredServiceMethodInfo = typeof(ServiceProviderServiceExtensions).GetMethod(
-            "GetRequiredService",
-            0,
-            [typeof(IServiceProvider), typeof(Type)])!;
-        private static Type genericPipe = typeof(IPipe<,>);
-        private static MethodInfo CreatePipeDependencyMethodInfo = typeof(ServiceProviderServiceExtensions).GetMethod(
+        private static readonly Dictionary<Type, Expression> expressionCache = new Dictionary<Type, Expression>();
+
+        private static readonly Type genericPipe = typeof(IPipe<,>);
+
+        private static readonly MethodInfo createPipeDependencyMethodInfo = typeof(ServiceCollectionExtensions).GetMethod(
             "CreatePipeDependency",
             2,
-            [typeof(Type), typeof(IServiceProvider)])!;
+            BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
+            binder: null,
+            [typeof(Type), typeof(IServiceProvider)],
+            modifiers: null)!;
 
-        private static MethodInfo CreateDependencyMethodInfo = typeof(ServiceProviderServiceExtensions).GetMethod(
+        private static readonly MethodInfo createDependencyMethodInfo = typeof(ServiceCollectionExtensions).GetMethod(
             "CreateDependency",
             1,
-            [typeof(Type), typeof(IServiceProvider)])!;
+            BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
+            binder: null,
+            [typeof(IServiceProvider)],
+            modifiers: null)!;
 
         public static IServiceCollection AddPipeline<TRequest, TResponse>(this IServiceCollection services, Assembly assembly)
             where TRequest : class
@@ -38,9 +44,8 @@ namespace Pipeline.Lib
             return services;
         }
 
-        public static IServiceCollection AddPipelines<TRequest, TResponse>(this IServiceCollection services, Assembly assembly)
+        public static IServiceCollection AddPipelines(this IServiceCollection services, Assembly assembly)
         {
-
             var pipelineDefinitionTypes = assembly.GetExportedTypes()
                 .Where(t => !t.IsAbstract && t.IsClass && IsImplemented(t, typeof(PipelineDefinition<,>)))
                 .ToList();
@@ -53,14 +58,32 @@ namespace Pipeline.Lib
                 if (definition == null)
                     throw new InvalidCastException($"Тип {pipelineDefinitionType.FullName} не реализует {typeof(IPipelineDefinition).FullName}");
 
-                var piplineGenericArguments = definition.PipelineType.GetGenericArguments();
-                var concreatePipelineType = basePipeline.MakeGenericType(piplineGenericArguments);
-                //TODO[SS] переделать регистрацию
-                services.AddScoped(definition.PipelineType, concreatePipelineType);
-                RegisterPipes(definition.Root, services);
+                Type[] piplineGenericArguments = definition.PipelineType.GetGenericArguments();
+                Type concreatePipelineType = basePipeline.MakeGenericType(piplineGenericArguments);
+
+                ConstructorInfo ctor = GetCtorOf(concreatePipelineType);
+                var ctorPipeParam = ctor.GetParameters().First();
+
+                var pipelineRegisterExpression = Expression.Lambda(
+                    Expression.New(ctor, BuildResolvePipeCtorParamExpression(definition.Root, ctorPipeParam)),
+                    Expression.Parameter(typeof(IServiceProvider), "provider"));
+
+                services.AddScoped(definition.PipelineType, sp => pipelineRegisterExpression.Compile().DynamicInvoke(sp)!);
+                services.RegisterPipes(definition.Root);
             }
 
             return services;
+        }
+
+        private static ConstructorInfo GetCtorOf(Type concreatePipelineType)
+        {
+            var ctors = concreatePipelineType.GetConstructors();
+            if (ctors.Length != 1)
+            {
+                throw new Exception($"Тип {concreatePipelineType.FullName} должен иметь строго 1 публичный конструктор");
+            }
+            var ctor = ctors[0];
+            return ctor;
         }
 
         private static bool IsImplemented(this Type? type, Type baseType)
@@ -74,61 +97,75 @@ namespace Pipeline.Lib
             return IsImplemented(type.BaseType, baseType);
         }
 
-        private static void RegisterPipes(PipeNode root, IServiceCollection services)
+        private static void RegisterPipes(this IServiceCollection services, PipeNode? root)
         {
-            if (root.Next == null)
+            if (root == null)
                 return;
 
-            if (s_expressionCache.TryGetValue(root.PipeType, out var registerExpression))
+            var ctor = GetCtorOf(root.PipeType);
+            ParameterInfo[] ctorParamInfos = ctor.GetParameters().ToArray();
+
+            var ctorParamExpressions = new List<Expression>(ctorParamInfos.Length);
+            foreach (ParameterInfo ctorParamInfo in ctorParamInfos)
             {
-                var ctor = root.PipeType.GetConstructors().First();
-                var ctorParamInfos = ctor.GetParameters()
-                    .ToArray();
-                var ctorParamExpressions = new List<Expression>(ctorParamInfos.Length);
-                foreach (var ctorParamInfo in ctorParamInfos)
-                {
-                    if (!s_expressionCache.TryGetValue(ctorParamInfo.ParameterType, out var paramExpression))
-                    {
-                        if (ctorParamInfo.ParameterType.IsImplemented(genericPipe))
-                        {
-                            var genericParameters = GetGenericType(ctorParamInfo.ParameterType)!.GetGenericArguments();
-                            var nextPipeType = root.Next?.PipeType ?? typeof(EndPipe<,>).MakeGenericType(genericParameters);
-
-                            paramExpression = Expression.Call(CreatePipeDependencyMethodInfo.MakeGenericMethod(genericParameters), Expression.Constant(nextPipeType, typeof(Type)), Expression.Parameter());
-                        }
-                        else
-                        { 
-                        }
-                    }
-                    ctorParamExpressions.Add(paramExpression);
-                }
-                var providerParam = Expression.Parameter(typeof(IServiceProvider), "provider");
-                var newPipeExpression = Expression.Lambda(Expression.New(ctor, ctorParamExpressions), providerParam);
-
-                var genericPipeType = GetGenericType(root.PipeType);
-                if (genericPipeType == null)
-                    throw new InvalidOperationException($"Тип {root.PipeType.FullName} не реализует");
-
-                var genericParams = genericPipeType.GetGenericArguments();
-
-                //var providerParam = Expression.Parameter(typeof(IServiceProvider), "provider");
-                var serviceTypeParam = Expression.Parameter(typeof(Type), "serviceType");
-                var nextExpr = Expression.Lambda(
-                    Expression.TypeAs(
-                        Expression.Call(getRequiredServiceMethodInfo, providerParam, serviceTypeParam),
-                        genericPipe.MakeGenericType(genericParams)),
-                    providerParam,
-                    serviceTypeParam);
-                s_expressionCache[root.PipeType] = registerExpression;
+                Expression paramExpression = BuildResolveCtorParamExpression(root, ctorParamInfo);
+                ctorParamExpressions.Add(paramExpression);
             }
 
-            //services.AddScoped(root.PipeType, sp => newPipeExpression.Compile().DynamicInvoke(sp)!);
+            var registerExpression = Expression.Lambda(
+                Expression.New(ctor, ctorParamExpressions),
+                Expression.Parameter(typeof(IServiceProvider), "provider"));
+
+            if (registerExpression is not LambdaExpression registerLambdaExpression)
+            {
+                throw new InvalidCastException($"Для типа {root.PipeType.FullName} дерево выражений не является лямбдой.");
+            }
+
+            services
+                .AddScoped(root.PipeType, sp => registerLambdaExpression.Compile().DynamicInvoke(sp)!)
+                .RegisterPipes(root.Next);
+        }
+
+        private static Expression BuildResolveCtorParamExpression(PipeNode root, ParameterInfo ctorParamInfo)
+        {
+            var isPipeParam = ctorParamInfo.ParameterType.IsImplemented(genericPipe);
+            if (isPipeParam)
+            {
+                return BuildResolvePipeCtorParamExpression(root, ctorParamInfo);
+            }
+            else
+            {
+                if(!expressionCache.TryGetValue(ctorParamInfo.ParameterType, out var paramExpression))
+                { 
+                    paramExpression = Expression.Call(
+                        createDependencyMethodInfo.MakeGenericMethod(ctorParamInfo.ParameterType),
+                        Expression.Parameter(typeof(IServiceProvider), "provider"));
+
+                    expressionCache[ctorParamInfo.ParameterType] = paramExpression;
+                }
+
+                return paramExpression;
+            }
+
+        }
+
+        private static Expression BuildResolvePipeCtorParamExpression(PipeNode root, ParameterInfo ctorParamInfo)
+        {
+            var genericParameters = GetGenericType(ctorParamInfo.ParameterType)!.GetGenericArguments();
+            var nextPipeType = root.Next?.PipeType ?? typeof(EndPipe<,>).MakeGenericType(genericParameters);
+
+            var paramExpression = Expression.Call(
+                    createPipeDependencyMethodInfo.MakeGenericMethod(genericParameters),
+                    Expression.Constant(nextPipeType, typeof(Type)),
+                    Expression.Parameter(typeof(IServiceProvider), "provider"));
+
+            return paramExpression;
         }
 
         private static Type? GetGenericType(Type sourceType)
         { 
             if(sourceType.IsGenericType)
-                return sourceType.GetGenericTypeDefinition();
+                return sourceType;
 
             if (sourceType.BaseType == null || sourceType.BaseType == typeof(object))
                 return null;
@@ -136,14 +173,10 @@ namespace Pipeline.Lib
             return GetGenericType(sourceType.BaseType);
         }
 
-        private static TObject CreateDependency<TObject>(Type dependencyType, IServiceProvider serviceProvider)
+        private static TObject CreateDependency<TObject>(IServiceProvider serviceProvider)
+            where TObject : class
         {
-            object dependencyObject = serviceProvider.GetRequiredService(dependencyType);
-
-            if (dependencyObject is TObject dependency)
-                return dependency;
-
-            throw new InvalidOperationException($"Тип {dependencyType} не реализует {typeof(TObject).FullName}.");
+            return serviceProvider.GetRequiredService<TObject>();
         }
 
         public static IPipe<TRequest, TResponse> CreatePipeDependency<TRequest, TResponse>(Type pipeType, IServiceProvider serviceProvider)

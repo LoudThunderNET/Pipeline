@@ -1,6 +1,6 @@
 ﻿using Pipeline.Console.App.Models;
 using Pipeline.Console.App.Pipes;
-using Pipeline.Lib.Abstraction;
+using Pipeline.Lib;
 
 namespace Pipeline.Console.App
 {

@@ -1,4 +1,6 @@
-﻿namespace Pipeline.Lib.Abstraction
+﻿using Pipeline.Lib.Abstraction;
+
+namespace Pipeline.Lib
 {
     public partial class PipelineContext<TRequest, TResponse> : IPipelineContext
         where TRequest : class

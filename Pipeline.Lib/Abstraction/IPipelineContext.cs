@@ -1,5 +1,4 @@
-﻿
-namespace Pipeline.Lib.Abstraction
+﻿namespace Pipeline.Lib.Abstraction
 {
     public interface IPipelineContext
     {
