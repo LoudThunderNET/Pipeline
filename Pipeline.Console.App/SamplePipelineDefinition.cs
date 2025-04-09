@@ -6,7 +6,7 @@ namespace Pipeline.Console.App
 {
     public class SamplePipelineDefinition : PipelineDefinition<Request, Response>
     {
-        public override void Define()
+        protected override void Define()
         {
             Pipeline()
                 .AddPipe<ValidationPipe>()

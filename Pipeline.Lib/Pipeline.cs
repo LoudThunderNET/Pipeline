@@ -7,25 +7,18 @@ namespace Pipeline.Lib
         where TRequest : class
         where TResponse : class
     {
-        private readonly IPipeFactory _serviceProvider;
-        private readonly Type _root;
+        private readonly IPipe<TRequest, TResponse> _root;
 
-        public Pipeline(IPipeFactory serviceProvider, Type root)
+        public Pipeline(IPipe<TRequest, TResponse> root)
         {
-            _serviceProvider = serviceProvider;
             _root = root;
         }
 
         /// <inheritdoc/>
         public async Task<TResponse?> HandleAsync(TRequest request, CancellationToken cancellationToken)
         {
-            var pipe = _serviceProvider.Create<TRequest, TResponse>(_root);
-            if (pipe == null)
-            { 
-                throw new InvalidOperationException($"Промежуточное ПО {_root.FullName} не зарегистрировано");
-            }
             var context = new PipelineContext<TRequest, TResponse>(request, cancellationToken);
-            await pipe.HandleAsync(context);
+            await _root.HandleAsync(context);
 
             return context.Response;
         }

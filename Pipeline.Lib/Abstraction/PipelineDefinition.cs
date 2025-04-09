@@ -1,10 +1,18 @@
-﻿using Pipeline.Lib.Pipes;
+﻿using System.Runtime.CompilerServices;
+using Pipeline.Lib.Pipes;
 
 namespace Pipeline.Lib.Abstraction
 {
     internal interface IPipelineDefinition
-    { 
+    {
+        /// <summary>
+        /// Тип <see cref="IPipeline{TRequest, TResponse}"/>
+        /// </summary>
         Type PipelineType { get; }
+
+        /// <summary>
+        /// Первый Pipe конвейера.
+        /// </summary>
         PipeNode Root { get; }
     }
 
@@ -14,32 +22,19 @@ namespace Pipeline.Lib.Abstraction
     {
         private Type? _pipelineType;
         private PipelineBuilder? _pipelineBuilder;
-        public Type PipelineType
-        {
-            get
-            {
-                ArgumentNullException.ThrowIfNull(_pipelineType);
-                return _pipelineType;
-            }
-        }
+
+        /// <inheritdoc/>
+        public Type PipelineType => GetPipelineType();
+
+        /// <inheritdoc/>
+        public PipeNode Root => GetRoot();
 
         public PipelineDefinition()
         {
             Define();
         }
 
-        public PipeNode Root
-        {
-            get
-            {
-                if (_pipelineBuilder == null)
-                    return PipeNode.Empty;
-
-                return ((IRoot)_pipelineBuilder).Root;
-            }
-        }
-
-        public abstract void Define();
+        protected abstract void Define();
 
         protected PipelineBuilder Pipeline()
         {
@@ -129,6 +124,22 @@ namespace Pipeline.Lib.Abstraction
 
                 return this;
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private PipeNode GetRoot() 
+        {
+            if (_pipelineBuilder == null)
+                return PipeNode.Empty;
+
+            return ((IRoot)_pipelineBuilder).Root;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Type GetPipelineType()
+        {
+            ArgumentNullException.ThrowIfNull(_pipelineType);
+            return _pipelineType;
         }
     }
 
