@@ -13,6 +13,11 @@ namespace Pipeline.Lib.PipeNodes
             _uniqueId = Guid.NewGuid().ToString();
         }
 
+        public PipeNode(Type? pipeType, PipeNode next) : this(pipeType)
+        {
+            Next = next;
+        }
+
         /// <summary>
         /// Уникальный идентификатор нода. Используется при 
         /// регистрации зависимостей.

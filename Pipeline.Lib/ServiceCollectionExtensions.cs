@@ -11,7 +11,7 @@ namespace Pipeline.Lib
 {
     public static class ServiceCollectionExtensions
     {
-        private static readonly Dictionary<Type, Expression> expressionCache = new Dictionary<Type, Expression>();
+        private static readonly Dictionary<Type, Expression> expressionCache = [];
 
         private static readonly Type genericPipe = typeof(IPipe<,>);
 
@@ -36,7 +36,7 @@ namespace Pipeline.Lib
             2,
             BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
             binder: null,
-            [typeof(PipeNode), typeof(Type[])],
+            [typeof(PipeNode), typeof(Type[]), typeof(ParameterExpression)],
             modifiers: null)!;
 
         private static readonly MethodInfo getPridicateMethodInfo = typeof(ServiceCollectionExtensions).GetMethod(
@@ -73,6 +73,9 @@ namespace Pipeline.Lib
         private static Type pipelineContextType = typeof(PipelineContext<,>);
         private static Type predicateType = typeof(Predicate<>);
 
+        //private static Type concreatePipelineContextType = null!;
+        private static Type concreatePredicateType = null!;
+
         public static IServiceCollection AddPipelines(this IServiceCollection services, Assembly assembly)
         {
             var pipelineDefinitionTypes = assembly.GetExportedTypes()
@@ -84,17 +87,18 @@ namespace Pipeline.Lib
                 IPipelineDefinition? definition = CreatePipelineDefinition(pipelineDefinitionType);
                 Type[] piplineGenericArguments = GetPipelineGenericArgumets(definition);
 
-                pipelineContextType = typeof(PipelineContext<,>).MakeGenericType(piplineGenericArguments);
-                predicateType = typeof(Predicate<>).MakeGenericType(pipelineContextType);
+                concreatePredicateType = predicateType.MakeGenericType(pipelineContextType.MakeGenericType(piplineGenericArguments));
 
                 Type concreatePipelineType = basePipeline.MakeGenericType(piplineGenericArguments);
 
                 ConstructorInfo ctor = GetCtorOf(concreatePipelineType);
                 ParameterInfo ctorPipeParam = GetPipelineCtorParameter(concreatePipelineType, ctor);
+                var serviceproviderParameter = Expression.Parameter(typeof(IServiceProvider), "provider");
 
+                MethodCallExpression ctorParamExpression = BuildResolvePipeCtorParamExpression(definition.Root, ctorPipeParam, piplineGenericArguments, serviceproviderParameter);
                 var pipelineRegisterExpression = Expression.Lambda(
-                    Expression.New(ctor, BuildResolvePipeCtorParamExpression(definition.Root, ctorPipeParam, piplineGenericArguments)),
-                    Expression.Parameter(typeof(IServiceProvider), "provider"));
+                    Expression.New(ctor, ctorParamExpression),
+                    serviceproviderParameter);
 
                 services.AddScoped(definition.PipelineType, sp => pipelineRegisterExpression.Compile().DynamicInvoke(sp)!);
                 services.RegisterPipes(definition.Root, piplineGenericArguments);
@@ -104,8 +108,7 @@ namespace Pipeline.Lib
 
             static IPipelineDefinition CreatePipelineDefinition(Type pipelineDefinitionType)
             {
-                var definition = Activator.CreateInstance(pipelineDefinitionType) as IPipelineDefinition;
-                if (definition == null)
+                if (Activator.CreateInstance(pipelineDefinitionType) is not IPipelineDefinition definition)
                     throw new InvalidCastException($"Тип {pipelineDefinitionType.FullName} не реализует {typeof(IPipelineDefinition).FullName}");
 
                 return definition;
@@ -161,13 +164,9 @@ namespace Pipeline.Lib
             // граничное условия окончания рекурсии
             if (root == null)
                 return;
-
-            var ctor = GetCtorOf(root.PipeType);
-            ParameterInfo[] ctorParamInfos = ctor.GetParameters().ToArray();
-
-            var createPipeExpression = createIfPipeExpression.MakeGenericMethod(piplineGenericArguments)
-                .Invoke(null, [root, piplineGenericArguments]) as Expression;
-            if (createPipeExpression == null)
+            var serviceProviderParameter = Expression.Parameter(typeof(IServiceProvider), "provider");
+            if (createIfPipeExpression.MakeGenericMethod(piplineGenericArguments)
+                .Invoke(null, [root, piplineGenericArguments, serviceProviderParameter]) is not Expression createPipeExpression)
                 throw new Exception($"Полученное значение не явлется производным от {typeof(Expression)}");
 
             //var ctorParamExpressions = new List<Expression>(ctorParamInfos.Length);
@@ -176,10 +175,9 @@ namespace Pipeline.Lib
             //    Expression paramExpression = BuildResolveCtorParamExpression(root, ctorParamInfo, piplineGenericArguments);
             //    ctorParamExpressions.Add(paramExpression);
             //}
-
             var registerExpression = Expression.Lambda(
                 createPipeExpression,
-                Expression.Parameter(typeof(IServiceProvider), "provider"));
+                serviceProviderParameter);
 
             if (registerExpression is not LambdaExpression registerLambdaExpression)
             {
@@ -200,27 +198,25 @@ namespace Pipeline.Lib
 
         private static PipeNode[] GetAlternativePipeNodes(PipeNode root, Type[] piplineGenericArguments)
         {
-            var positivePipe = getPositiveNodeMethodInfo.MakeGenericMethod(piplineGenericArguments).Invoke(null, [root]) as PipeNode;
-            if(positivePipe == null)
-                return Array.Empty<PipeNode>();
+            if (getPositiveNodeMethodInfo.MakeGenericMethod(piplineGenericArguments).Invoke(null, [root]) is not PipeNode positivePipe)
+                return [];
 
             var pipeNodes = new List<PipeNode>(2)
             {
                 positivePipe
             };
-            var altPipe = getAltNodeMethodInfo.MakeGenericMethod(piplineGenericArguments).Invoke(null, [root]) as PipeNode;
-            if (altPipe != null)
+            if (getAltNodeMethodInfo.MakeGenericMethod(piplineGenericArguments).Invoke(null, [root]) is PipeNode altPipe)
                 pipeNodes.Add(altPipe);
 
-            return pipeNodes.ToArray();
+            return [.. pipeNodes];
         }
 
-        private static Expression BuildResolveCtorParamExpression(PipeNode root, ParameterInfo ctorParamInfo, Type[] piplineGenericArguments)
+        private static MethodCallExpression BuildResolveCtorParamExpression(PipeNode root, ParameterInfo ctorParamInfo, Type[] piplineGenericArguments, ParameterExpression provider)
         {
             var isPipeParam = ctorParamInfo.ParameterType.IsImplement(genericPipe);
             if (isPipeParam)
             {
-                return BuildResolvePipeCtorParamExpression(root, ctorParamInfo, piplineGenericArguments);
+                return BuildResolvePipeCtorParamExpression(root, ctorParamInfo, piplineGenericArguments, provider);
             }
 
             // кэшируем всё, кроме IPipe<TRequest, TResponse>
@@ -228,12 +224,12 @@ namespace Pipeline.Lib
             { 
                 paramExpression = Expression.Call(
                     resolveDependencyMethodInfo.MakeGenericMethod(ctorParamInfo.ParameterType),
-                    Expression.Parameter(typeof(IServiceProvider), "provider"));
+                    provider);
 
                 expressionCache[ctorParamInfo.ParameterType] = paramExpression;
             }
 
-            return paramExpression;
+            return paramExpression as MethodCallExpression;
         }
 
         /// <summary>
@@ -243,19 +239,31 @@ namespace Pipeline.Lib
         /// <param name="ctorPipeParamInfo"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        private static Expression BuildResolvePipeCtorParamExpression(PipeNode? root, ParameterInfo ctorPipeParamInfo, Type[] piplineGenericArguments)
+        private static MethodCallExpression BuildResolvePipeCtorParamExpression(PipeNode? root, ParameterInfo ctorPipeParamInfo, Type[] pipelineGenericArguments, ParameterExpression provider)
         {
-            var nextPipeType = root.Next.PipeType;
-                // если цепочка pipe`ов закончилась, а pipe имеет зависимость от IPipe<,>, то добавляем заглушку.
+            ArgumentNullException.ThrowIfNull(root, nameof(root));
 
-            return Expression.Call(
-                    resolvePipeDependencyMethodInfo.MakeGenericMethod(piplineGenericArguments),
-                    Expression.Constant(root.Next.PipeType, typeof(Type)),
+            var endPipeNode = typeof(EndPipeNode<,>).MakeGenericType(pipelineGenericArguments);
+
+            if (root.GetType() == endPipeNode)
+            {
+                return Expression.Call(
+                    resolvePipeDependencyMethodInfo.MakeGenericMethod(pipelineGenericArguments),
+                    Expression.Constant(root.PipeType, typeof(Type)),
+                    Expression.Constant(root.UniqueId, typeof(object)),
+                    provider);
+            }
+            else
+            {
+                return Expression.Call(
+                    resolvePipeDependencyMethodInfo.MakeGenericMethod(pipelineGenericArguments),
+                    Expression.Constant(root.Next!.PipeType, typeof(Type)),
                     Expression.Constant(root.Next.UniqueId, typeof(object)),
-                    Expression.Parameter(typeof(IServiceProvider), "provider"));
+                    provider);
+            }
         }
 
-        private static Expression? CreateIfPipeExpression<TRequest, TResponse>(PipeNode pipeNode, Type[] piplineGenericArguments)
+        private static Expression? CreateIfPipeExpression<TRequest, TResponse>(PipeNode pipeNode, Type[] piplineGenericArguments, ParameterExpression provider)
             where TRequest : class
             where TResponse : class
         {
@@ -265,19 +273,19 @@ namespace Pipeline.Lib
             {
                 IfElsePipeNode<TRequest, TResponse> ifElsePipeNode =>
                     Expression.New(ctor, 
-                        Expression.Constant(ifElsePipeNode.Predicate, predicateType.MakeGenericType(pipelineContextType.MakeGenericType(piplineGenericArguments))),
-                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Positive, ctorParams[1], piplineGenericArguments),
-                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Alternative, ctorParams[2], piplineGenericArguments),
-                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Next, ctorParams[3], piplineGenericArguments)),
+                        Expression.Constant(ifElsePipeNode.Predicate, concreatePredicateType),
+                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Positive, ctorParams[1], piplineGenericArguments, provider),
+                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Alternative, ctorParams[2], piplineGenericArguments, provider),
+                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Next, ctorParams[3], piplineGenericArguments, provider)),
 
                 IfPipeNode<TRequest, TResponse> ifPipeNode =>
                     Expression.New(ctor,
-                        Expression.Constant(ifPipeNode.Predicate, predicateType.MakeGenericType(pipelineContextType.MakeGenericType(piplineGenericArguments))),
-                        BuildResolvePipeCtorParamExpression(ifPipeNode.Positive, ctorParams[1], piplineGenericArguments),
-                        BuildResolvePipeCtorParamExpression(ifPipeNode.Next, ctorParams[2], piplineGenericArguments)),
+                        Expression.Constant(ifPipeNode.Predicate, concreatePredicateType),
+                        BuildResolvePipeCtorParamExpression(ifPipeNode.Positive, ctorParams[1], piplineGenericArguments, provider),
+                        BuildResolvePipeCtorParamExpression(ifPipeNode.Next, ctorParams[2], piplineGenericArguments, provider)),
                 _ => 
                 Expression.New(ctor, ctorParams
-                    .Select(pi => BuildResolveCtorParamExpression(pipeNode, pi, piplineGenericArguments))
+                    .Select(pi => BuildResolveCtorParamExpression(pipeNode, pi, piplineGenericArguments, provider))
                     .ToArray())
             };
         }

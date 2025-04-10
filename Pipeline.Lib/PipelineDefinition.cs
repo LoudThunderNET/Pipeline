@@ -62,7 +62,7 @@ namespace Pipeline.Lib
             public PipelineBuilder AddPipe<TPipe>()
                 where TPipe : class, IPipe<TRequest, TResponse>
             {
-                var pipeNode = new PipeNode(typeof(TPipe));
+                var pipeNode = new PipeNode(typeof(TPipe), new EndPipeNode<TRequest, TResponse>());
                 AttachCurrentNext(pipeNode);
 
                 return this;
