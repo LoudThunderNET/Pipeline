@@ -1,6 +1,5 @@
 ﻿using Pipeline.Lib.Abstraction;
 using Pipeline.Lib.PipeNodes;
-using System.Runtime.CompilerServices;
 
 namespace Pipeline.Lib
 {
@@ -83,7 +82,7 @@ namespace Pipeline.Lib
             }
 
             public PipelineBuilder If(
-                Func<PipelineContext<TRequest, TResponse>, bool> predicate,
+                Predicate<PipelineContext<TRequest, TResponse>> predicate,
                 Action<PipelineBuilder> positiveBranch)
             {
                 var builder = new PipelineBuilder();
@@ -99,7 +98,7 @@ namespace Pipeline.Lib
             }
 
             public PipelineBuilder IfElse(
-                Func<PipelineContext<TRequest, TResponse>, bool> predicate,
+                Predicate<PipelineContext<TRequest, TResponse>> predicate,
                 Action<PipelineBuilder> positiveBranch,
                 Action<PipelineBuilder> altBranch)
             {

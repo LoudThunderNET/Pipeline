@@ -7,7 +7,7 @@ namespace Pipeline.Lib.PipeNodes
         where TResponse : class
     {
         public IfElsePipeNode(
-            Func<PipelineContext<TRequest, TResponse>, bool> predicate,
+            Predicate<PipelineContext<TRequest, TResponse>> predicate,
             PipeNode positive,
             PipeNode alternative)
             : base(predicate, positive)
@@ -19,6 +19,6 @@ namespace Pipeline.Lib.PipeNodes
         /// <summary>
         /// Выполняется если <see cref="Predicate"/> возвращает <see langword="false"/>.
         /// </summary>
-        public PipeNode Alternative { get; set; } = null!;
+        public PipeNode Alternative { get; }
     }
 }

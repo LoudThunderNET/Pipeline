@@ -3,7 +3,8 @@
 namespace Pipeline.Lib.Pipes
 {
     public class IfElsePipe<TRequest, TResponse>(
-            Func<PipelineContext<TRequest, TResponse>, bool> predicate,
+            // порядок аргументов не менять !
+            Predicate<PipelineContext<TRequest, TResponse>> predicate,
             IPipe<TRequest, TResponse> positive,
             IPipe<TRequest, TResponse> alter,
             IPipe<TRequest, TResponse> main)

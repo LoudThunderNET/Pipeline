@@ -1,9 +1,13 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Linq.Expressions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pipeline.Console.App;
 using Pipeline.Console.App.Models;
+using Pipeline.Console.App.Pipes;
 using Pipeline.Lib;
 using Pipeline.Lib.Abstraction;
+using Pipeline.Lib.PipeNodes;
+using Pipeline.Lib.Pipes;
 
 internal class Program
 {
@@ -23,7 +27,7 @@ internal class Program
         var response = await pipeline.HandleAsync(new Request 
         { 
             Id = 123,
-            Name = "Helloe world"
+            Name = "Hello world"
         }, default);
 
         Console.WriteLine("Hello, World!");

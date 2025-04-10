@@ -6,10 +6,18 @@ namespace Pipeline.Lib.PipeNodes
     {
         public static PipeNode Empty = new PipeNode(null);
 
+        private readonly string _uniqueId;
         public PipeNode(Type? pipeType)
         {
             PipeType = pipeType;
+            _uniqueId = Guid.NewGuid().ToString();
         }
+
+        /// <summary>
+        /// Уникальный идентификатор нода. Используется при 
+        /// регистрации зависимостей.
+        /// </summary>
+        public string UniqueId => _uniqueId;
 
         /// <summary>
         /// Тип <see cref="IPipe{TRequest, TResponse}"/>

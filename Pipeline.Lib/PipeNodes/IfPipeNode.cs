@@ -8,7 +8,7 @@ namespace Pipeline.Lib.PipeNodes
 
     {
         public IfPipeNode(
-            Func<PipelineContext<TRequest, TResponse>, bool> predicate,
+            Predicate<PipelineContext<TRequest, TResponse>> predicate,
             PipeNode positive)
             : base(typeof(IfPipe<TRequest, TResponse>))
         {
@@ -19,7 +19,7 @@ namespace Pipeline.Lib.PipeNodes
         /// <summary>
         /// Условный предикат.
         /// </summary>
-        public Func<PipelineContext<TRequest, TResponse>, bool> Predicate { get; set; } = null!;
+        public Predicate<PipelineContext<TRequest, TResponse>> Predicate { get; }
 
         /// <summary>
         /// Выполняется если <see cref="Predicate"/> возвращает <see langword="true"/>.
