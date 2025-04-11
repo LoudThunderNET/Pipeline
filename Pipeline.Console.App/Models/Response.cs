@@ -1,4 +1,4 @@
-﻿namespace Pipeline.Console.App.Models
+﻿namespace Pipeline.Sample.App.Models
 {
     public class Response
     {

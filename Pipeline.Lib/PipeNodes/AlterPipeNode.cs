@@ -1,31 +1,23 @@
-﻿using System.Reflection.Metadata.Ecma335;
-using Pipeline.Lib.Pipes;
+﻿using Pipeline.Lib.Pipes;
 
 namespace Pipeline.Lib.PipeNodes
 {
-    public class IfPipeNode<TRequest, TResponse> : PipeNode
+    public class AlterPipeNode<TRequest, TResponse>(
+            Predicate<PipelineContext<TRequest, TResponse>> predicate,
+            PipeNode positive) : PipeNode(typeof(AlterPipe<TRequest, TResponse>), new EndPipeNode<TRequest, TResponse>())
         where TRequest : class
         where TResponse : class
 
     {
-        public IfPipeNode(
-            Predicate<PipelineContext<TRequest, TResponse>> predicate,
-            PipeNode positive)
-            : base(typeof(IfPipe<TRequest, TResponse>), new EndPipeNode<TRequest, TResponse>())
-        {
-            Predicate = predicate;
-            Positive = positive;
-        }
-
         /// <summary>
         /// Условный предикат.
         /// </summary>
-        public Predicate<PipelineContext<TRequest, TResponse>> Predicate { get; }
+        public Predicate<PipelineContext<TRequest, TResponse>> Predicate { get; } = predicate;
 
         /// <summary>
         /// Выполняется если <see cref="Predicate"/> возвращает <see langword="true"/>.
         /// </summary>
-        public PipeNode Positive { get; set; }
+        public PipeNode Positive { get; set; } = positive;
 
         /// <inheritdoc/>
         public override IEnumerable<PipeNode> Children

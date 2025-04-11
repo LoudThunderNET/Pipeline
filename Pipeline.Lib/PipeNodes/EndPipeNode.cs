@@ -2,12 +2,10 @@
 
 namespace Pipeline.Lib.PipeNodes
 {
-    internal class EndPipeNode<TRequest, TResponse> : PipeNode
+    internal class EndPipeNode<TRequest, TResponse>() 
+        : PipeNode(typeof(EndPipe<TRequest, TResponse>))
         where TRequest : class
         where TResponse : class
     {
-        public EndPipeNode() : base(typeof(EndPipe<TRequest, TResponse>))
-        {
-        }
     }
 }

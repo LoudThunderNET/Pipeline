@@ -1,7 +1,7 @@
-﻿using Pipeline.Console.App.Models;
+﻿using Pipeline.Sample.App.Models;
 using Pipeline.Lib;
 
-namespace Pipeline.Console.App
+namespace Pipeline.Sample.App
 {
     public static class PropertiesExtensions
     {
@@ -10,6 +10,13 @@ namespace Pipeline.Console.App
             where TRequest : class
             where TResponse : class
         {
+            if (!ctx.Properties.TryGetValue(ValidKey, out var propVal))
+            {
+                propVal = new PropertyValue();
+                ctx.Properties[ValidKey] = propVal;
+            }
+            propVal.BoolVal = valid;
+
             return ctx;
         }
 

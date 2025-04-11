@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Pipeline.Console.App.Models
+namespace Pipeline.Sample.App.Models
 {
     public class Request
     {

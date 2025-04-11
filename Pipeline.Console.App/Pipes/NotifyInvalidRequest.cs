@@ -1,17 +1,15 @@
-﻿using Pipeline.Console.App.Models;
+﻿using Microsoft.Extensions.Logging;
+using Pipeline.Sample.App.Models;
 using Pipeline.Lib;
 using Pipeline.Lib.Abstraction;
 
-namespace Pipeline.Console.App.Pipes
+namespace Pipeline.Sample.App.Pipes
 {
-    internal class NotifyInvalidRequest : IPipe<Request, Response>
+    internal class NotifyInvalidRequest(ILogger<NotifyInvalidRequest> logger) : IPipe<Request, Response>
     {
-        public NotifyInvalidRequest() 
-        { 
-        }
-
         public Task HandleAsync(PipelineContext<Request, Response> context)
         {
+            logger.LogInformation($"{nameof(NotifyInvalidRequest)} called");
             return Task.CompletedTask;
         }
     }

@@ -1,9 +1,9 @@
 ﻿using System.Linq.Expressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Pipeline.Console.App;
-using Pipeline.Console.App.Models;
-using Pipeline.Console.App.Pipes;
+using Pipeline.Sample.App;
+using Pipeline.Sample.App.Models;
+using Pipeline.Sample.App.Pipes;
 using Pipeline.Lib;
 using Pipeline.Lib.Abstraction;
 using Pipeline.Lib.PipeNodes;

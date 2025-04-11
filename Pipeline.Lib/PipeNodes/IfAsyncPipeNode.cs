@@ -1,9 +1,11 @@
-﻿namespace Pipeline.Lib.PipeNodes
+﻿using Pipeline.Lib.Abstraction;
+
+namespace Pipeline.Lib.PipeNodes
 {
     public class IfAsyncPipeNode<TRequest, TResponse>(
             Type pipeType,
-            Func<PipelineContext<TRequest, TResponse>, Task<bool>> predicateAsync,
-            PipeNode positive) : PipeNode(pipeType)
+            PredicateAsync<PipelineContext<TRequest, TResponse>> predicateAsync,
+            PipeNode positive) : PipeNode(pipeType, new EndPipeNode<TRequest, TResponse>())
         where TRequest : class
         where TResponse : class
 
@@ -11,11 +13,25 @@
         /// <summary>
         /// Асинхронный условный предикат.
         /// </summary>
-        public Func<PipelineContext<TRequest, TResponse>, Task<bool>> PredicateAsync { get; set; } = predicateAsync;
+        public PredicateAsync<PipelineContext<TRequest, TResponse>> Predicate { get; set; } = predicateAsync;
 
         /// <summary>
         /// Выполняется если <see cref="Predicate"/> возвращает <see langword="true"/>.
         /// </summary>
         public PipeNode Positive { get; set; } = positive;
+
+        /// <inheritdoc/>
+        public override IEnumerable<PipeNode> Children
+        {
+            get
+            {
+                yield return Positive;
+                yield return Positive;
+                foreach (var item in base.Children)
+                {
+                    yield return item;
+                }
+            }
+        }
     }
 }

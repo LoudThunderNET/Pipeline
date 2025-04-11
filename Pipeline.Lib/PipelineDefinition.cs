@@ -14,7 +14,7 @@ namespace Pipeline.Lib
         public Type PipelineType => GetPipelineType();
 
         /// <inheritdoc/>
-        public PipeNode Root => GetRoot();
+        public PipeNode Root => _pipelineBuilder?.Root ?? throw new InvalidOperationException("Корень конвейера не задан");
 
         public PipelineDefinition()
         {
@@ -31,26 +31,12 @@ namespace Pipeline.Lib
             return _pipelineBuilder;
         }
 
-        private interface IRoot
-        {
-            PipeNode Root { get; }
-        }
-
-        protected class PipelineBuilder : IRoot
+        protected class PipelineBuilder
         {
             private PipeNode? _root = null;
             private PipeNode? _current = null;
 
-            public PipelineBuilder()
-            {
-            }
-
-            public PipelineBuilder(PipeNode root)
-            {
-                _root = _current = root;
-            }
-
-            PipeNode IRoot.Root
+            internal PipeNode Root
             {
                 get
                 {
@@ -66,19 +52,6 @@ namespace Pipeline.Lib
                 AttachCurrentNext(pipeNode);
 
                 return this;
-            }
-
-            private void AttachCurrentNext(PipeNode pipeNode)
-            {
-                if (_current == null)
-                    _current = pipeNode;
-                else
-                    _current.Next = pipeNode;
-
-                if (_root == null)
-                    _root = _current;
-
-                _current = pipeNode;
             }
 
             public PipelineBuilder If(
@@ -113,14 +86,35 @@ namespace Pipeline.Lib
 
                 return this;
             }
-        }
 
-        private PipeNode GetRoot()
-        {
-            if (_pipelineBuilder == null)
-                return PipeNode.Empty;
+            public PipelineBuilder Alter(
+                Predicate<PipelineContext<TRequest, TResponse>> predicate,
+                Action<PipelineBuilder> positiveBranch)
+            {
+                var builder = new PipelineBuilder();
+                positiveBranch(builder);
 
-            return ((IRoot)_pipelineBuilder).Root;
+                if (builder._root == null)
+                    throw new InvalidOperationException("Не задано промежуточное ПО для простой развилки");
+
+                var pipeNode = new AlterPipeNode<TRequest, TResponse>(predicate, builder._root);
+                AttachCurrentNext(pipeNode);
+
+                return this;
+            }
+
+            private void AttachCurrentNext(PipeNode pipeNode)
+            {
+                if (_current == null)
+                    _current = pipeNode;
+                else
+                    _current.Next = pipeNode;
+
+                if (_root == null)
+                    _root = _current;
+
+                _current = pipeNode;
+            }
         }
 
         private Type GetPipelineType()

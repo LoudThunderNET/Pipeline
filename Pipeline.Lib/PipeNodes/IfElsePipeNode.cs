@@ -20,5 +20,20 @@ namespace Pipeline.Lib.PipeNodes
         /// Выполняется если <see cref="Predicate"/> возвращает <see langword="false"/>.
         /// </summary>
         public PipeNode Alternative { get; }
+
+        /// <inheritdoc/>
+        public override IEnumerable<PipeNode> Children
+        {
+            get
+            {
+                yield return Positive;
+                yield return Alternative;
+                yield return Positive;
+                foreach (var item in base.Children)
+                {
+                    yield return item;
+                }
+            }
+        }
     }
 }

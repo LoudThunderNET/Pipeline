@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
-using Pipeline.Console.App.Models;
+using Pipeline.Sample.App.Models;
 using Pipeline.Lib;
 using Pipeline.Lib.Abstraction;
 
-namespace Pipeline.Console.App.Pipes
+namespace Pipeline.Sample.App.Pipes
 {
     internal class GenerateDocuments(
         ILogger<GenerateDocuments> logger,
@@ -11,7 +11,7 @@ namespace Pipeline.Console.App.Pipes
     {
         public Task HandleAsync(PipelineContext<Request, Response> context)
         {
-            logger.LogInformation("Документы сформированы");
+            logger.LogInformation($"{nameof(GenerateDocuments)} called");
 
             return next.HandleAsync(context);
         }

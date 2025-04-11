@@ -31,45 +31,16 @@ namespace Pipeline.Lib
             [typeof(IServiceProvider)],
             modifiers: null)!;
 
-        private static readonly MethodInfo createIfPipeExpression = typeof(ServiceCollectionExtensions).GetMethod(
-            nameof(CreateIfPipeExpression),
+        private static readonly MethodInfo createPipeExpressionMethodIndo = typeof(ServiceCollectionExtensions).GetMethod(
+            nameof(CreatePipeExpression),
             2,
             BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
             binder: null,
             [typeof(PipeNode), typeof(Type[]), typeof(ParameterExpression)],
             modifiers: null)!;
 
-        private static readonly MethodInfo getPridicateMethodInfo = typeof(ServiceCollectionExtensions).GetMethod(
-            nameof(GetPridicate),
-            2,
-            BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
-            binder: null,
-            [typeof(PipeNode)],
-            modifiers: null)!;
-
-        private static readonly MethodInfo getPositiveNodeMethodInfo = typeof(ServiceCollectionExtensions).GetMethod(
-            nameof(GetPositiveNode),
-            2,
-            BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
-            binder: null,
-            [typeof(PipeNode)],
-            modifiers: null)!;
-
-        private static readonly MethodInfo getAltNodeMethodInfo = typeof(ServiceCollectionExtensions).GetMethod(
-            nameof(GetAltNode),
-            2,
-            BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
-            binder: null,
-            [typeof(PipeNode)],
-            modifiers: null)!;
-
         private static readonly Type basePipeline = typeof(Pipeline<,>);
 
-        private static readonly Type ifPipeType = typeof(IfPipe<,>);
-        private static readonly Type ifElsePipeType = typeof(IfElsePipe<,>);
-
-        private static readonly Type ifPipeNodeType = typeof(IfPipeNode<,>);
-        private static readonly Type ifElsePipeNodeType = typeof(IfElsePipeNode<,>);
         private static Type pipelineContextType = typeof(PipelineContext<,>);
         private static Type predicateType = typeof(Predicate<>);
 
@@ -164,17 +135,12 @@ namespace Pipeline.Lib
             // граничное условия окончания рекурсии
             if (root == null)
                 return;
+
             var serviceProviderParameter = Expression.Parameter(typeof(IServiceProvider), "provider");
-            if (createIfPipeExpression.MakeGenericMethod(piplineGenericArguments)
+            if (createPipeExpressionMethodIndo.MakeGenericMethod(piplineGenericArguments)
                 .Invoke(null, [root, piplineGenericArguments, serviceProviderParameter]) is not Expression createPipeExpression)
                 throw new Exception($"Полученное значение не явлется производным от {typeof(Expression)}");
 
-            //var ctorParamExpressions = new List<Expression>(ctorParamInfos.Length);
-            //foreach (ParameterInfo ctorParamInfo in ctorParamInfos)
-            //{
-            //    Expression paramExpression = BuildResolveCtorParamExpression(root, ctorParamInfo, piplineGenericArguments);
-            //    ctorParamExpressions.Add(paramExpression);
-            //}
             var registerExpression = Expression.Lambda(
                 createPipeExpression,
                 serviceProviderParameter);
@@ -185,33 +151,13 @@ namespace Pipeline.Lib
             }
             services.AddKeyedScoped(root.PipeType!, root.UniqueId, (sp, _) => registerLambdaExpression.Compile().DynamicInvoke(sp)!);
 
-            // поскольку root может быть узлом развилки логики, то надо зарегистрировать
-            // ветки положительного пути и альтернативного пути.
-            PipeNode[] altNodes = GetAlternativePipeNodes(root, piplineGenericArguments);
-            foreach (var altNode in altNodes)
+            foreach (var altNode in root.Children)
             {
                 services.RegisterPipes(altNode, piplineGenericArguments);
             }
-
-            services.RegisterPipes(root.Next, piplineGenericArguments);
         }
 
-        private static PipeNode[] GetAlternativePipeNodes(PipeNode root, Type[] piplineGenericArguments)
-        {
-            if (getPositiveNodeMethodInfo.MakeGenericMethod(piplineGenericArguments).Invoke(null, [root]) is not PipeNode positivePipe)
-                return [];
-
-            var pipeNodes = new List<PipeNode>(2)
-            {
-                positivePipe
-            };
-            if (getAltNodeMethodInfo.MakeGenericMethod(piplineGenericArguments).Invoke(null, [root]) is PipeNode altPipe)
-                pipeNodes.Add(altPipe);
-
-            return [.. pipeNodes];
-        }
-
-        private static MethodCallExpression BuildResolveCtorParamExpression(PipeNode root, ParameterInfo ctorParamInfo, Type[] piplineGenericArguments, ParameterExpression provider)
+        private static Expression BuildResolveCtorParamExpression(PipeNode root, ParameterInfo ctorParamInfo, Type[] piplineGenericArguments, ParameterExpression provider)
         {
             var isPipeParam = ctorParamInfo.ParameterType.IsImplement(genericPipe);
             if (isPipeParam)
@@ -229,7 +175,7 @@ namespace Pipeline.Lib
                 expressionCache[ctorParamInfo.ParameterType] = paramExpression;
             }
 
-            return paramExpression as MethodCallExpression;
+            return paramExpression;
         }
 
         /// <summary>
@@ -238,56 +184,87 @@ namespace Pipeline.Lib
         /// <param name="root"></param>
         /// <param name="ctorPipeParamInfo"></param>
         /// <returns></returns>
-        /// <exception cref="Exception"></exception>
+        /// <exception cref="ArgumentNullException"></exception>
         private static MethodCallExpression BuildResolvePipeCtorParamExpression(PipeNode? root, ParameterInfo ctorPipeParamInfo, Type[] pipelineGenericArguments, ParameterExpression provider)
         {
             ArgumentNullException.ThrowIfNull(root, nameof(root));
 
-            var endPipeNode = typeof(EndPipeNode<,>).MakeGenericType(pipelineGenericArguments);
-
-            if (root.GetType() == endPipeNode)
-            {
-                return Expression.Call(
-                    resolvePipeDependencyMethodInfo.MakeGenericMethod(pipelineGenericArguments),
-                    Expression.Constant(root.PipeType, typeof(Type)),
-                    Expression.Constant(root.UniqueId, typeof(object)),
-                    provider);
-            }
-            else
-            {
-                return Expression.Call(
-                    resolvePipeDependencyMethodInfo.MakeGenericMethod(pipelineGenericArguments),
-                    Expression.Constant(root.Next!.PipeType, typeof(Type)),
-                    Expression.Constant(root.Next.UniqueId, typeof(object)),
-                    provider);
-            }
+            return Expression.Call(
+                resolvePipeDependencyMethodInfo.MakeGenericMethod(pipelineGenericArguments),
+                Expression.Constant(root.PipeType, typeof(Type)),
+                Expression.Constant(root.UniqueId, typeof(object)),
+                provider);
         }
 
-        private static Expression? CreateIfPipeExpression<TRequest, TResponse>(PipeNode pipeNode, Type[] piplineGenericArguments, ParameterExpression provider)
+        private static Expression? CreatePipeExpression<TRequest, TResponse>(PipeNode pipeNode, Type[] piplineGenericArguments, ParameterExpression provider)
             where TRequest : class
             where TResponse : class
         {
-            var ctor = GetCtorOf(pipeNode.PipeType);
-            var ctorParams = ctor.GetParameters();
             return pipeNode switch
             {
-                IfElsePipeNode<TRequest, TResponse> ifElsePipeNode =>
-                    Expression.New(ctor, 
-                        Expression.Constant(ifElsePipeNode.Predicate, concreatePredicateType),
-                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Positive, ctorParams[1], piplineGenericArguments, provider),
-                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Alternative, ctorParams[2], piplineGenericArguments, provider),
-                        BuildResolvePipeCtorParamExpression(ifElsePipeNode.Next, ctorParams[3], piplineGenericArguments, provider)),
-
-                IfPipeNode<TRequest, TResponse> ifPipeNode =>
-                    Expression.New(ctor,
-                        Expression.Constant(ifPipeNode.Predicate, concreatePredicateType),
-                        BuildResolvePipeCtorParamExpression(ifPipeNode.Positive, ctorParams[1], piplineGenericArguments, provider),
-                        BuildResolvePipeCtorParamExpression(ifPipeNode.Next, ctorParams[2], piplineGenericArguments, provider)),
-                _ => 
-                Expression.New(ctor, ctorParams
-                    .Select(pi => BuildResolveCtorParamExpression(pipeNode, pi, piplineGenericArguments, provider))
-                    .ToArray())
+                IfElsePipeNode<TRequest, TResponse> ifElsePipeNode => CreateNewIfElsePipeExpression(ifElsePipeNode, piplineGenericArguments, provider),
+                IfPipeNode<TRequest, TResponse> ifPipeNode => CreateNewIfPipeExpression(ifPipeNode, piplineGenericArguments, provider),
+                AlterPipeNode<TRequest, TResponse> alterPipeNode => CreateNewAlterPipeExpression(alterPipeNode, piplineGenericArguments, provider),
+                _ => CreatePipeNewExpression(pipeNode, piplineGenericArguments, provider)
             };
+
+            static Expression CreateNewIfElsePipeExpression(IfElsePipeNode<TRequest, TResponse> ifElsePipeNode, Type[] piplineGenericArguments, ParameterExpression provider)
+            {
+                var ctor = GetCtorOf(ifElsePipeNode.PipeType);
+                var ctorParams = ctor.GetParameters();
+
+                return Expression.New(
+                    ctor,
+                    Expression.Constant(ifElsePipeNode.Predicate, concreatePredicateType),
+                    BuildResolvePipeCtorParamExpression(ifElsePipeNode.Positive, ctorParams[1], piplineGenericArguments, provider),
+                    BuildResolvePipeCtorParamExpression(ifElsePipeNode.Alternative, ctorParams[2], piplineGenericArguments, provider),
+                    BuildResolvePipeCtorParamExpression(ifElsePipeNode.Next, ctorParams[3], piplineGenericArguments, provider));
+            }
+
+            static Expression CreateNewAlterPipeExpression(AlterPipeNode<TRequest, TResponse> alterPipeNode, Type[] piplineGenericArguments, ParameterExpression provider)
+            { 
+                var ctor = GetCtorOf(alterPipeNode.PipeType);
+                var ctorParams = ctor.GetParameters();
+
+                return Expression.New(
+                    ctor,
+                    Expression.Constant(alterPipeNode.Predicate, concreatePredicateType),
+                    BuildResolvePipeCtorParamExpression(alterPipeNode.Positive, ctorParams[1], piplineGenericArguments, provider),
+                    BuildResolvePipeCtorParamExpression(alterPipeNode.Next, ctorParams[2], piplineGenericArguments, provider));
+            }
+
+            static Expression CreateNewIfPipeExpression(IfPipeNode<TRequest, TResponse> ifPipeNode, Type[] piplineGenericArguments, ParameterExpression provider)
+            {
+                var ctor = GetCtorOf(ifPipeNode.PipeType);
+                var ctorParams = ctor.GetParameters();
+
+                return Expression.New(
+                    ctor,
+                    Expression.Constant(ifPipeNode.Predicate, concreatePredicateType),
+                    BuildResolvePipeCtorParamExpression(ifPipeNode.Positive, ctorParams[1], piplineGenericArguments, provider),
+                    BuildResolvePipeCtorParamExpression(ifPipeNode.Next, ctorParams[2], piplineGenericArguments, provider));
+            }
+
+            static Expression CreatePipeNewExpression(PipeNode pipeNode, Type[] piplineGenericArguments, ParameterExpression provider)
+            {
+                var ctor = GetCtorOf(pipeNode.PipeType);
+                var ctorParams = ctor.GetParameters();
+                var paramExpressions = new List<Expression>(ctorParams.Length);
+                foreach (var ctorParam in ctorParams)
+                {
+                    var dependecyResolutionPipeNode = ctorParam.ParameterType.IsImplement(genericPipe) 
+                        // поскольку pipeNode не является ветвлением конвейера и имеет зависимость от IPipe<,>,
+                        // то эта зависимость всегда следующий pipe типа pipeNode.Next
+                        ? pipeNode.Next
+                        : pipeNode;
+                    if (dependecyResolutionPipeNode == null)
+                        throw new InvalidOperationException("Pipe разрешения зависимости неожаданно равен null");
+
+                    paramExpressions.Add(BuildResolveCtorParamExpression(dependecyResolutionPipeNode, ctorParam, piplineGenericArguments, provider));
+                }
+
+                return Expression.New(ctor, paramExpressions);
+            }
         }
 
         private static Type? GetGenericType(Type sourceType)
@@ -317,54 +294,6 @@ namespace Pipeline.Lib
                 return pipe;
 
             throw new InvalidOperationException($"Тип {pipeType.FullName} не реализует {genericPipe.FullName}.");
-        }
-
-        private static Predicate<PipelineContext<TRequest, TResponse>>? GetPridicate<TRequest, TResponse>(PipeNode pipeNode)
-            where TRequest : class
-            where TResponse : class
-        {
-            if (pipeNode is IfPipeNode<TRequest, TResponse> ifPipeNode)
-            {
-                return ifPipeNode.Predicate;
-            }
-            else if (pipeNode is IfElsePipeNode<TRequest, TResponse> ifElsePipeNode)
-            {
-                return ifElsePipeNode.Predicate;
-            }
-
-            return null;
-        }
-
-        private static PipeNode? GetPositiveNode<TRequest, TResponse>(PipeNode pipeNode)
-            where TRequest : class
-            where TResponse : class
-        {
-            if (pipeNode is IfPipeNode<TRequest, TResponse> ifPipeNode)
-            {
-                return ifPipeNode.Positive;
-            }
-            else if (pipeNode is IfElsePipeNode<TRequest, TResponse> ifElsePipeNode)
-            {
-                return ifElsePipeNode.Positive;
-            }
-
-            return null;
-        }
-
-        private static PipeNode? GetAltNode<TRequest, TResponse>(PipeNode pipeNode)
-            where TRequest : class
-            where TResponse : class
-        {
-            if (pipeNode is IfPipeNode<TRequest, TResponse> ifPipeNode)
-            {
-                return null;
-            }
-            else if (pipeNode is IfElsePipeNode<TRequest, TResponse> ifElsePipeNode)
-            {
-                return ifElsePipeNode.Alternative;
-            }
-
-            return null;
         }
     }
 }

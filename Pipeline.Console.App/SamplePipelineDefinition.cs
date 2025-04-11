@@ -1,8 +1,8 @@
-﻿using Pipeline.Console.App.Models;
-using Pipeline.Console.App.Pipes;
+﻿using Pipeline.Sample.App.Models;
+using Pipeline.Sample.App.Pipes;
 using Pipeline.Lib;
 
-namespace Pipeline.Console.App
+namespace Pipeline.Sample.App
 {
     public class SamplePipelineDefinition : PipelineDefinition<Request, Response>
     {
@@ -10,7 +10,7 @@ namespace Pipeline.Console.App
         {
             Pipeline()
                 .AddPipe<ValidationPipe>()
-                .If(
+                .Alter(
                 ctx => ctx.IsValid() == true,
                 pipe => pipe.AddPipe<NotifyInvalidRequest>())
                 .AddPipe<GenerateDocuments>();

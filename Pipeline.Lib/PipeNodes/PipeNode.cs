@@ -4,8 +4,6 @@ namespace Pipeline.Lib.PipeNodes
 {
     public class PipeNode
     {
-        public static PipeNode Empty = new PipeNode(null);
-
         private readonly string _uniqueId;
         public PipeNode(Type? pipeType)
         {
@@ -33,5 +31,19 @@ namespace Pipeline.Lib.PipeNodes
         /// Следующий узел.
         /// </summary>
         public PipeNode? Next { get; set; }
+
+        /// <summary>
+        /// Узлы, входящие в состав узла, кроме <see cref="Next"/>.
+        /// </summary>
+        public virtual IEnumerable<PipeNode> Children 
+        {
+            get 
+            {
+                if(Next != null)
+                    yield return Next;
+
+                yield break;
+            }
+        }
     }
 }
