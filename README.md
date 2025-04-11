@@ -2,6 +2,9 @@
 Создание этой библиотеки было вдохновлено докладом Скотта Влашина (Scott Wlaschin) "[Pipeline-oriented programming](https://www.youtube.com/watch?v=ipceTuJlw-M)" .
 Ключевые моменты идеи:
 - код разбивается на небольшие, независимые фрагменты кода. Эти фрагменты, в парадигме конвейерного программирования, называются пайпы (Pipe);
+- пайпы объединяются в конвейер.
+
+Пайпы обладают следующими свойствами:
 - пайпы реализуют простой интерфейс;
 - пайпы легко комбинировать между собой и выстраивать логику приложения, словно строим дом из кирпичей;
 - пайпы легко тестировать и сопровождать благодаря своему малому размеру логики;
@@ -15,7 +18,7 @@
 
 ## Использование.
 Определяем классы запроса/ответа для каждого конвейера. Да, Вы можете определить несколько конвейеров в коде. Конвейеры различаются параметрами обощенных типов TRequest и TResponse для `IPipe<TRequest, TResponse>`.
-Реализуем интерфейс `IPipe<TRequest, TResponse>` классом пайпа, реализующим бизнес логику. 
+Реализуем интерфейс `IPipe<TRequest, TResponse>` классом пайпа бизнес логики. 
 ```csharp
 internal class ValidationPipe(ILogger<ValidationPipe> logger, IPipe<Request, Response> next) 
     : IPipe<Request, Response>
@@ -54,14 +57,11 @@ internal class Program
     {
         var services = new ServiceCollection();
         services.AddPipelines(typeof(SamplePipelineDefinition).Assembly); // один вызов регистриует все конвейеры в сборке.
-        services.AddLogging(logBuilder =>
-        {
-            logBuilder.AddConsole();
-            logBuilder.AddDebug();
-        });
+        // регистрация других зависимостей.
 
         var serviceProvider = services.BuildServiceProvider();
         using var asyncScope = serviceProvider.CreateAsyncScope();
+
         var pipeline = asyncScope.ServiceProvider.GetRequiredService<IPipeline<Request, Response>>();
 
         var response = await pipeline.HandleAsync(new Request 
@@ -75,15 +75,14 @@ internal class Program
 }
 ```
 
-## API jпределение конвейре.
-
-Определения конвейера реализуется путем переопределения метод `Define()` класса `PipelineDefinition<Request, Response>`. Определение должно начинаться в вызова метода Pipeline(), который возвращает строитель конвейра. Строитель конвейера предоставляет следующие методы API:
-- AddPipe<TPipeType>() - добавлет в конвейер пайп.
-- If(Predicate<PipelineContext<TRequest, TResponse>> predicate, Action<PipelineBuilder> positiveBranch) - добавляет пайп условного выполнения ветки конвейера.
-- IfElse(Predicate<PipelineContext<TRequest, TResponse>> predicate,
+## API определения конвейера.
+Определение конвейера реализуется путем переопределения метода `Define()` класса `PipelineDefinition<Request, Response>`. Определение должно начинаться в вызова метода `Pipeline()`, который возвращает строитель конвейра. Строитель конвейера предоставляет следующие методы API:
+- `AddPipe<TPipeType>()` - добавлет в конвейер пайп.
+- `If(Predicate<PipelineContext<TRequest, TResponse>> predicate, Action<PipelineBuilder> positiveBranch)` - добавляет пайп условного выполнения ветки конвейера.
+- `IfElse(Predicate<PipelineContext<TRequest, TResponse>> predicate,
       Action<PipelineBuilder> positiveBranch,
-      Action<PipelineBuilder> altBranch) - добавляет пайп условного выполнения двух ветвей конвейера. Если условия выполняется, то исполняется позитивня ветвь конвейра, иначе альтернативная ветвь. После исполнения условных ветвей, продолжается выполненеи основного конвейера.
-- Alter(Predicate<PipelineContext<TRequest, TResponse>> predicate,
-        Action<PipelineBuilder> positiveBranch)  - добавляет пайп условного ветвления основного конвейра. Если условие выполняется, то исполнение кода продолжиться на позитивной ветки конвейера без возврата к основному. Иначе - продолжиться выполнение основго ветки конвейера.
+      Action<PipelineBuilder> altBranch)` - добавляет пайп условного выполнения двух ветвей конвейера. Если условия выполняется, то исполняется позитивня ветвь конвейра, иначе альтернативная ветвь. После исполнения условных ветвей, продолжается выполненеи основного конвейера.
+- `Alter(Predicate<PipelineContext<TRequest, TResponse>> predicate,
+        Action<PipelineBuilder> positiveBranch)`  - добавляет пайп условного ветвления основного конвейра. Если условие выполняется, то исполнение кода продолжиться на позитивной ветки конвейера без возврата к основному. Иначе - продолжиться выполнение основго ветки конвейера.
 На иллюстрация поясняющая работу условных пайпов
 
