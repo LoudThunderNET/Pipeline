@@ -2,7 +2,7 @@
 
 namespace Pipeline.Lib
 {
-    public partial class PipelineContext<TRequest, TResponse> : IPipelineContext
+    public class PipelineContext<TRequest, TResponse> : IPipelineContext
         where TRequest : class
         where TResponse : class
     {
