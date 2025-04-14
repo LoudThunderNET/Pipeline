@@ -10,8 +10,8 @@ namespace Pipeline.Sample.App
         {
             Pipeline()
                 .AddPipe<ValidationPipe>()
-                .Alter(
-                ctx => ctx.IsValid() == true,
+                .If(
+                ctx => ctx.IsValid() == false,
                 pipe => pipe.AddPipe<NotifyInvalidRequest>())
                 .AddPipe<GenerateDocuments>();
         }

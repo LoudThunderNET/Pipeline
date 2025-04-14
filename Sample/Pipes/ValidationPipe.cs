@@ -11,7 +11,7 @@ namespace Pipeline.Sample.App.Pipes
         public Task HandleAsync(PipelineContext<Request, Response> context)
         {
             logger.LogInformation($"{nameof(ValidationPipe)} called");
-            context.Valid(true);
+            context.Valid(false);
 
             return next.HandleAsync(context);
         }

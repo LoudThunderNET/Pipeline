@@ -1,13 +1,9 @@
-﻿using System.Linq.Expressions;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pipeline.Sample.App;
 using Pipeline.Sample.App.Models;
-using Pipeline.Sample.App.Pipes;
 using Pipeline.Lib;
 using Pipeline.Lib.Abstraction;
-using Pipeline.Lib.PipeNodes;
-using Pipeline.Lib.Pipes;
 
 internal class Program
 {
@@ -30,6 +26,6 @@ internal class Program
             Name = "Hello world"
         }, default);
 
-        Console.WriteLine("Hello, World!");
+        Console.WriteLine(response?.Message ??  $"Конвейер обработки {pipeline.GetType().FullName} не вернул результат.");
     }
 }

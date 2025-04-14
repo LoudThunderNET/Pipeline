@@ -13,6 +13,12 @@ namespace Pipeline.Sample.App.Pipes
         {
             logger.LogInformation($"{nameof(GenerateDocuments)} called");
 
+            context.Response = new Response
+            {
+                IsSuccess = true,
+                Message = context.Request.Name,
+            };
+
             return next.HandleAsync(context);
         }
     }
